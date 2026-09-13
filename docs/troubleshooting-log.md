@@ -41,3 +41,13 @@ Use this template for every controlled failure.
 - **Root cause:** The repository root was not available on `sys.path` under the standalone CI invocation.
 - **Fix:** Run tests as `python -m pytest -q` in both environments.
 - **Prevention:** Keep local and CI verification commands identical and document them in one canonical place.
+
+## Incident 3: Liveness probe restarted an API during a busy rollout
+
+- **Symptom:** One newly deployed API container restarted once while the observability stack was starting.
+- **Evidence:** Pod events showed repeated readiness timeouts followed by a liveness timeout and kubelet restart; the previous container exited cleanly with code `0`.
+- **Hypothesis:** Heavy concurrent image pulls and backend startup temporarily delayed the API beyond the liveness probe's one-second timeout.
+- **Test:** Inspect `kubectl describe pod` and previous container logs; the service became stable after node load dropped.
+- **Root cause:** Liveness checking began without a startup probe, so Kubernetes treated slow initialization like a dead application.
+- **Fix:** Add a startup probe and explicit three-second readiness/liveness timeouts.
+- **Prevention:** Use startup probes for applications whose initialization time varies, especially on resource-constrained development clusters.
