@@ -1,0 +1,16 @@
+images:
+  prometheus: prom/prometheus:v3.5.0
+  mimir: grafana/mimir:3.1.4
+  loki: grafana/loki:3.7.4
+  tempo: grafana/tempo:2.10.7
+  alloy: grafana/alloy:v1.18.1
+  grafana: grafana/grafana:13.2.0
+
+target:
+  namespace: opslab-gitops
+  service: opslab-api
+  port: 8000
+
+grafana:
+  adminUser: admin
+  adminPassword: opslab-admin

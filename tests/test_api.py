@@ -50,6 +50,15 @@ class TaskApiTests(unittest.TestCase):
         response = self.client.post("/tasks", json={"title": "Bad task", "status": "unknown"})
         self.assertEqual(response.status_code, 422)
 
+    def test_observability_demo_endpoints(self) -> None:
+        slow = self.client.get("/demo/slow?delay_ms=1")
+        self.assertEqual(slow.status_code, 200)
+        self.assertEqual(slow.json()["delay_ms"], 1)
+
+        error = self.client.get("/demo/error")
+        self.assertEqual(error.status_code, 500)
+        self.assertIn("Intentional error", error.json()["detail"])
+
 
 if __name__ == "__main__":
     unittest.main()

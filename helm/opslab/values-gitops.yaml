@@ -1,5 +1,7 @@
 api:
   environment: gitops
+  telemetry:
+    otlpTracesEndpoint: http://observability-tempo.observability.svc.cluster.local:4318/v1/traces
   image:
     repository: ghcr.io/varel183/opslab
     tag: 68fc7371a1ac4c22f1a07620ecc0b806915f7b68

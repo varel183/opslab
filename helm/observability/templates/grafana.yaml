@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "observability.fullname" . }}-grafana-datasources
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Mimir
+        uid: mimir
+        type: prometheus
+        access: proxy
+        url: http://{{ include "observability.fullname" . }}-mimir:9009/prometheus
+        isDefault: true
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://{{ include "observability.fullname" . }}-prometheus:9090
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://{{ include "observability.fullname" . }}-loki:3100
+        jsonData:
+          derivedFields:
+            - name: TraceID
+              matcherRegex: '"trace_id":\s*"([a-f0-9]+)"'
+              datasourceUid: tempo
+              url: '${__value.raw}'
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://{{ include "observability.fullname" . }}-tempo:3200
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: -5m
+            spanEndTimeShift: 5m
+            filterByTraceID: true
+            filterBySpanID: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "observability.fullname" . }}-grafana-provider
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: OpsLab
+        folder: OpsLab Learning
+        type: file
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "observability.fullname" . }}-grafana-dashboard
+data:
+  opslab-observability.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "mimir"},
+          "fieldConfig": {"defaults": {"unit": "reqps"}},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "targets": [{"expr": "sum by (status) (rate(opslab_http_requests_total[1m]))", "refId": "A"}],
+          "title": "Mimir: request rate by HTTP status",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(opslab_http_request_duration_seconds_bucket[1m])))", "refId": "A"}],
+          "title": "Prometheus: p95 request duration",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"showTime": true, "wrapLogMessage": true, "enableLogDetails": true},
+          "targets": [{"expr": "{namespace=\"{{ .Values.target.namespace }}\", app=\"opslab-api\"} | json", "refId": "A"}],
+          "title": "Loki: API logs (click TraceID to open Tempo)",
+          "type": "logs"
+        },
+        {
+          "datasource": {"type": "tempo", "uid": "tempo"},
+          "gridPos": {"h": 9, "w": 24, "x": 0, "y": 18},
+          "id": 4,
+          "targets": [{"limit": 20, "query": "{ resource.service.name = \"opslab-api\" }", "queryType": "traceql", "refId": "A"}],
+          "title": "Tempo: recent API traces",
+          "type": "traces"
+        }
+      ],
+      "refresh": "5s",
+      "schemaVersion": 42,
+      "tags": ["opslab", "metrics", "logs", "traces"],
+      "time": {"from": "now-15m", "to": "now"},
+      "title": "OpsLab Observability: Metrics, Logs, Traces",
+      "uid": "opslab-observability"
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "observability.fullname" . }}-grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grafana
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        fsGroup: 472
+      containers:
+        - name: grafana
+          image: {{ .Values.images.grafana }}
+          ports:
+            - {name: http, containerPort: 3000}
+          env:
+            - {name: GF_SECURITY_ADMIN_USER, value: {{ .Values.grafana.adminUser | quote }}}
+            - {name: GF_SECURITY_ADMIN_PASSWORD, value: {{ .Values.grafana.adminPassword | quote }}}
+            - {name: GF_AUTH_ANONYMOUS_ENABLED, value: "true"}
+            - {name: GF_AUTH_ANONYMOUS_ORG_ROLE, value: Viewer}
+            - {name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH, value: /var/lib/grafana/dashboards/opslab-observability.json}
+          readinessProbe:
+            httpGet: {path: /api/health, port: http}
+            initialDelaySeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: datasources, mountPath: /etc/grafana/provisioning/datasources}
+            - {name: provider, mountPath: /etc/grafana/provisioning/dashboards}
+            - {name: dashboard, mountPath: /var/lib/grafana/dashboards}
+      volumes:
+        - name: datasources
+          configMap: {name: {{ include "observability.fullname" . }}-grafana-datasources}
+        - name: provider
+          configMap: {name: {{ include "observability.fullname" . }}-grafana-provider}
+        - name: dashboard
+          configMap: {name: {{ include "observability.fullname" . }}-grafana-dashboard}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "observability.fullname" . }}-grafana
+spec:
+  selector:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - {name: http, port: 3000, targetPort: http}

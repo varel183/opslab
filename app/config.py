@@ -8,7 +8,7 @@ class Settings:
     app_version: str = os.getenv("APP_VERSION", "0.1.0")
     environment: str = os.getenv("APP_ENV", "development")
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./opslab.db")
+    otel_traces_endpoint: str = os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")
 
 
 settings = Settings()
-

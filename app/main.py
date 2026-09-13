@@ -1,9 +1,18 @@
+import asyncio
+import json
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from time import perf_counter
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.trace import SpanKind, Status, StatusCode
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -14,6 +23,36 @@ from app.models import Task
 from app.schemas import TaskCreate, TaskRead, TaskUpdate
 
 DbSession = Annotated[Session, Depends(get_db)]
+
+logger = logging.getLogger("opslab")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
+
+
+def configure_tracing() -> None:
+    if not settings.otel_traces_endpoint:
+        return
+    provider = TracerProvider(
+        resource=Resource.create(
+            {
+                "service.name": "opslab-api",
+                "service.version": settings.app_version,
+                "deployment.environment": settings.environment,
+            }
+        )
+    )
+    provider.add_span_processor(
+        BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.otel_traces_endpoint))
+    )
+    trace.set_tracer_provider(provider)
+
+
+configure_tracing()
+tracer = trace.get_tracer("opslab.api")
 
 REQUEST_COUNT = Counter(
     "opslab_http_requests_total",
@@ -39,11 +78,45 @@ app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=li
 @app.middleware("http")
 async def observe_requests(request: Request, call_next):
     started = perf_counter()
-    response = await call_next(request)
-    path = request.scope.get("route").path if request.scope.get("route") else request.url.path
-    REQUEST_COUNT.labels(request.method, path, response.status_code).inc()
-    REQUEST_DURATION.labels(request.method, path).observe(perf_counter() - started)
-    return response
+    status_code = 500
+    path = request.url.path
+    with tracer.start_as_current_span(
+        f"{request.method} {path}", kind=SpanKind.SERVER
+    ) as span:
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            route = request.scope.get("route")
+            path = route.path if route else path
+            return response
+        except Exception as exc:
+            span.record_exception(exc)
+            span.set_status(Status(StatusCode.ERROR))
+            raise
+        finally:
+            duration = perf_counter() - started
+            span.set_attribute("http.request.method", request.method)
+            span.set_attribute("http.route", path)
+            span.set_attribute("http.response.status_code", status_code)
+            if status_code >= 500:
+                span.set_status(Status(StatusCode.ERROR))
+            context = span.get_span_context()
+            trace_id = f"{context.trace_id:032x}" if context.is_valid else "unavailable"
+            REQUEST_COUNT.labels(request.method, path, status_code).inc()
+            REQUEST_DURATION.labels(request.method, path).observe(duration)
+            logger.info(
+                json.dumps(
+                    {
+                        "event": "http_request",
+                        "method": request.method,
+                        "path": path,
+                        "status": status_code,
+                        "duration_ms": round(duration * 1000, 2),
+                        "trace_id": trace_id,
+                        "environment": settings.environment,
+                    }
+                )
+            )
 
 
 @app.get("/", tags=["system"])
@@ -59,6 +132,19 @@ def root() -> dict[str, str]:
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
     return {"status": "healthy"}
+
+
+@app.get("/demo/slow", tags=["observability"])
+async def demo_slow(delay_ms: int = 500) -> dict[str, int | str]:
+    delay_ms = min(max(delay_ms, 0), 5000)
+    await asyncio.sleep(delay_ms / 1000)
+    return {"status": "slow response completed", "delay_ms": delay_ms}
+
+
+@app.get("/demo/error", tags=["observability"])
+def demo_error() -> None:
+    logger.error(json.dumps({"event": "demo_error", "reason": "intentional learning demo"}))
+    raise HTTPException(status_code=500, detail="Intentional error for observability demo")
 
 
 @app.get("/ready", tags=["system"])

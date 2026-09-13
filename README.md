@@ -87,4 +87,5 @@ must allow GitHub Actions to write packages.
 - [Learning guide](docs/learning-guide.md)
 - [Helm guide](docs/helm-guide.md)
 - [GitHub Actions and Argo CD guide](docs/gitops-guide.md)
+- [Metrics, logs, and traces observability guide](docs/observability-guide.md)
 - [Troubleshooting log](docs/troubleshooting-log.md)

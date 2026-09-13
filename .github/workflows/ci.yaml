@@ -37,6 +37,11 @@ jobs:
       - name: Test
         run: python -m pytest -q
 
+      - name: Validate Helm charts
+        run: |
+          helm lint helm/opslab -f helm/opslab/values-dev.yaml -f helm/opslab/values-gitops.yaml
+          helm lint helm/observability
+
       - name: Build Docker image
         run: docker build --tag opslab-api:${{ github.sha }} .
 

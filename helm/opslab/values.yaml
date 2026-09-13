@@ -10,6 +10,8 @@ api:
   service:
     port: 8000
   environment: helm
+  telemetry:
+    otlpTracesEndpoint: ""
   resources:
     requests:
       cpu: 50m
@@ -44,4 +46,3 @@ postgresql:
     limits:
       cpu: 500m
       memory: 512Mi
-
