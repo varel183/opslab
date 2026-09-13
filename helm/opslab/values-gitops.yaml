@@ -1,6 +1,6 @@
 api:
   environment: gitops
   image:
-    repository: ghcr.io/your-account/your-repository
-    tag: replace-after-first-ci-run
+    repository: ghcr.io/varel183/opslab
+    tag: a2a9d09b03900d04c5a7345cf3049c63e7d6cd2c
     pullPolicy: IfNotPresent
