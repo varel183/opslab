@@ -4,5 +4,5 @@ api:
     otlpTracesEndpoint: http://observability-tempo.observability.svc.cluster.local:4318/v1/traces
   image:
     repository: ghcr.io/varel183/opslab
-    tag: 2d17d69a75db9ed67abe7231d4c9fae1ef3f6591
+    tag: 1ec954ef44b14e34028e3b78251b5c676f90dc79
     pullPolicy: IfNotPresent
