@@ -35,7 +35,7 @@ jobs:
         run: ruff check app tests
 
       - name: Test
-        run: pytest -q
+        run: python -m pytest -q
 
       - name: Build Docker image
         run: docker build --tag opslab-api:${{ github.sha }} .

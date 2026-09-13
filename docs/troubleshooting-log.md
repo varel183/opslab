@@ -31,3 +31,13 @@ Use this template for every controlled failure.
 - **Root cause:** The Dockerfile used a user name; the kubelet cannot resolve image-local names before starting the container.
 - **Fix:** Assign UID/GID `10001` at build time and use `USER 10001:10001`.
 - **Prevention:** Use explicit high numeric IDs in images deployed with `runAsNonRoot`, and test images on Kubernetes in CI.
+
+## Incident 2: CI could not import the application package
+
+- **Symptom:** GitHub Actions stopped during test collection with `ModuleNotFoundError: No module named 'app'`.
+- **Evidence:** Linting succeeded, but the runner invoked the standalone `pytest` executable while local verification used `python -m pytest`.
+- **Hypothesis:** The two invocation methods constructed different Python import paths on the Linux runner.
+- **Test:** Compare the workflow command with the exact local command that passes.
+- **Root cause:** The repository root was not available on `sys.path` under the standalone CI invocation.
+- **Fix:** Run tests as `python -m pytest -q` in both environments.
+- **Prevention:** Keep local and CI verification commands identical and document them in one canonical place.
