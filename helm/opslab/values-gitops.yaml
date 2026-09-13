@@ -2,5 +2,5 @@ api:
   environment: gitops
   image:
     repository: ghcr.io/varel183/opslab
-    tag: a2a9d09b03900d04c5a7345cf3049c63e7d6cd2c
+    tag: 68fc7371a1ac4c22f1a07620ecc0b806915f7b68
     pullPolicy: IfNotPresent
