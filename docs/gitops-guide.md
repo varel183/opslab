@@ -20,7 +20,7 @@ Create an empty GitHub repository, then run from the OpsLab directory:
 git init -b main
 git add .
 git commit -m "feat: create OpsLab DevOps learning stack"
-git remote add origin https://github.com/YOUR_ACCOUNT/YOUR_REPOSITORY.git
+git remote add origin https://github.com/varel183/opslab.git
 git push -u origin main
 ```
 
@@ -54,8 +54,7 @@ Change the initial password after the first login.
 
 ## 3. Connect the application
 
-Copy `argocd/application.yaml.example` to `argocd/application.yaml`, replace the GitHub
-repository URL, and apply it:
+The ready-to-use `argocd/application.yaml` points to the public OpsLab repository. Apply it:
 
 ```powershell
 kubectl apply -f argocd/application.yaml
@@ -76,4 +75,3 @@ kubectl get deployment -n opslab-gitops -w
 
 This differs from plain Helm: Helm acts only when invoked, while Argo CD continuously
 compares the cluster with Git and corrects drift.
-
