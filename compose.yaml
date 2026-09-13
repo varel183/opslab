@@ -1,0 +1,32 @@
+services:
+  api:
+    build:
+      context: .
+    environment:
+      APP_ENV: docker-compose
+      DATABASE_URL: postgresql+psycopg://opslab:opslab@db:5432/opslab
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: opslab
+      POSTGRES_USER: opslab
+      POSTGRES_PASSWORD: opslab
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opslab -d opslab"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+

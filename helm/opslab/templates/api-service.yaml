@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "opslab.fullname" . }}-api
+  labels:
+    {{- include "opslab.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "opslab.apiSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.api.service.port }}
+      targetPort: http
+

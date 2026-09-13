@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opslab-api-config
+  namespace: opslab
+data:
+  APP_ENV: kubernetes
+  APP_NAME: OpsLab Task API
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: opslab-db-secret
+  namespace: opslab
+type: Opaque
+stringData:
+  POSTGRES_USER: opslab
+  POSTGRES_PASSWORD: change-me-for-real-environments
+  POSTGRES_DB: opslab

@@ -1,0 +1,8 @@
+api:
+  replicaCount: 3
+  environment: helm-development
+
+postgresql:
+  persistence:
+    size: 512Mi
+

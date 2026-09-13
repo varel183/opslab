@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - helm/opslab/values-gitops.yaml
+  pull_request:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check app tests
+
+      - name: Test
+        run: pytest -q
+
+      - name: Build Docker image
+        run: docker build --tag opslab-api:${{ github.sha }} .
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish image
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}"
+          docker tag "opslab-api:${GITHUB_SHA}" "$image"
+          docker push "$image"
+
+      - name: Update GitOps image reference
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          image_repo="${GITHUB_REPOSITORY,,}"
+          sed -i "s|repository:.*|repository: ghcr.io/${image_repo}|" helm/opslab/values-gitops.yaml
+          sed -i "s|tag:.*|tag: ${GITHUB_SHA}|" helm/opslab/values-gitops.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add helm/opslab/values-gitops.yaml
+          git diff --cached --quiet || git commit -m "chore(deploy): update image to ${GITHUB_SHA} [skip ci]"
+          git push

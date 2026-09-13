@@ -1,0 +1,33 @@
+# Troubleshooting Log
+
+Use this template for every controlled failure.
+
+## Incident template
+
+- **Symptom:** What did the user or operator observe?
+- **Evidence:** Which logs, events, metrics, or status output support the diagnosis?
+- **Hypothesis:** What might explain the evidence?
+- **Test:** Which safe command or experiment confirms or rejects the hypothesis?
+- **Root cause:** What actually failed, and why?
+- **Fix:** What restored the service?
+- **Prevention:** Which validation, automation, alert, or design change prevents recurrence?
+
+## Planned labs
+
+1. Set the API database host to `wrong-db` and investigate readiness failures.
+2. Change the API image tag to a nonexistent tag and diagnose `ImagePullBackOff`.
+3. Change the Service selector and trace why traffic cannot reach healthy pods.
+4. Set an unrealistically low memory limit and identify an OOM termination.
+5. Manually change the Terraform-managed quota and detect configuration drift with `terraform plan`.
+6. Break an API test and use the CI logs to locate the failing assertion.
+7. Generate repeated 404 responses and inspect the Prometheus request counter.
+
+## Incident 1: Kubernetes rejected the named container user
+
+- **Symptom:** Both API pods stayed in `CreateContainerConfigError` while their image was present.
+- **Evidence:** `kubectl describe pod` reported that `runAsNonRoot` could not verify the image user `opslab`.
+- **Hypothesis:** Kubernetes requires a numeric UID to prove that the configured image user is not root.
+- **Test:** Inspect the pod events and compare the Deployment security context with the Dockerfile `USER` instruction.
+- **Root cause:** The Dockerfile used a user name; the kubelet cannot resolve image-local names before starting the container.
+- **Fix:** Assign UID/GID `10001` at build time and use `USER 10001:10001`.
+- **Prevention:** Use explicit high numeric IDs in images deployed with `runAsNonRoot`, and test images on Kubernetes in CI.

@@ -1,0 +1,2 @@
+kube_context = "kind-opslab"
+namespace    = "opslab"
